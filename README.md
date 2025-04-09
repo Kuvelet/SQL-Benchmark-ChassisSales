@@ -46,7 +46,6 @@ Ultimately, the goal is to better understand regional market dynamics and improv
 
 ---
 
-### Data Sources
 
 ### Data Sources
 
@@ -310,19 +309,21 @@ END;
 
 **Raw Input** (`ALL_CHASSIS_SALES_RAW` — sample)
 
-| ID | Brand  | Part_Number | Part_Number_Cond | Last_12_Months_Sales | Region        | Year_Received |
-|----|--------|--------------|------------------|------------------------|----------------|----------------|
-| 1  | Moog   | K123456      | K123456          | 1200                   | North America  | 2023           |
-| 2  | MAS    | MS98765      | MS98765          | 600                    | Mexico         | 2023           |
-| 3  | Delphi | DS45678      | DS45678          | 900                    | Europe         | 2023           |
-| 4  | OEM    | 12345678     | 12345678         | 1500                   | North America  | 2023           |
-| 5  | Moog   | K789012      | K789012          | 500                    | South America  | 2023           |
-| 6  | MAS    | MS65432      | MS65432          | 300                    | Central America| 2023           |
-| 7  | Delphi | DS11111      | DS11111          | 700                    | Mexico         | 2023           |
-| 8  | OEM    | 87654321     | 87654321         | 1000                   | Europe         | 2023           |
-| 9  | Moog   | K222333      | K222333          | 450                    | Middle East    | 2023           |
+| ID | Brand  | Part_Number | Part_Number_Cond | Last_12_Months_Sales | Region          | Year_Received |
+|----|--------|--------------|------------------|------------------------|------------------|----------------|
+| 1  | Moog   | K123456      | K123456          | 1200                   | North America    | 2023           |
+| 2  | MAS    | MS98765      | MS98765          | 600                    | Mexico           | 2023           |
+| 3  | Delphi | DS45678      | DS45678          | 900                    | Europe           | 2023           |
+| 4  | OEM    | 12345678     | 12345678         | 1500                   | North America    | 2023           |
+| 5  | Moog   | K789012      | K789012          | 500                    | South America    | 2023           |
+| 6  | MAS    | MS65432      | MS65432          | 300                    | Central America  | 2023           |
+| 7  | Delphi | DS11111      | DS11111          | 700                    | Mexico           | 2023           |
+| 8  | OEM    | 87654321     | 87654321         | 1000                   | Europe           | 2023           |
+| 9  | Moog   | K222333      | K222333          | 450                    | Middle East      | 2023           |
 
-**Cross-Matching** (`Master_CrossReferences_CK` — simplified sample)
+---
+
+**Cross-Matched** (`Master_CrossReferences_CK` — simplified sample)
 
 | CrossName | CrossingNumber | SusCatalog  |
 |-----------|----------------|-------------|
@@ -336,134 +337,174 @@ END;
 | OEMCond   | 87654321       | SUS-10003   |
 | Moog      | K222333        | SUS-10004   |
 
-**Joined + Aggregated Output** (`Chassis_Rank` — sample)
+---
 
-| SusCatalog | NA_Sales | Mexico_Sales | Europe_Sales | Central_Sales | SA_Sales | ME_Sales | Total_Sales | Rank_Total |
-|------------|----------|--------------|--------------|----------------|----------|----------|--------------|-------------|
-| SUS-10001  | 2700     | 600          | 900          | NULL           | NULL     | NULL     | 4200         | 1           |
-| SUS-10002  | NULL     | NULL         | NULL         | 300            | 500      | NULL     | 800          | 3           |
-| SUS-10003  | NULL     | 700          | 1000         | NULL           | NULL     | NULL     | 1700         | 2           |
-| SUS-10004  | NULL     | NULL         | NULL         | NULL           | NULL     | 450      | 450          | 4           |
+**Final Output** (`Chassis_Rank` — Aggregated & Ranked)
+
+| SusCatalog | NA_Sales | Mexico_Sales | Europe_Sales | Central_Sales | SA_Sales | ME_Sales | Total_Sales | NA_Rank | Mexico_Rank | Europe_Rank | Rank_Total |
+|------------|----------|--------------|--------------|----------------|----------|----------|--------------|---------|-------------|-------------|------------|
+| SUS-10001  | 2700     | 600          | 900          | NULL           | NULL     | NULL     | 4200         | 1       | 2           | 2           | 1          |
+| SUS-10003  | NULL     | 700          | 1000         | NULL           | NULL     | NULL     | 1700         | NULL    | 1           | 1           | 2          |
+| SUS-10002  | NULL     | NULL         | NULL         | 300            | 500      | NULL     | 800          | NULL    | NULL        | NULL        | 3          |
+| SUS-10004  | NULL     | NULL         | NULL         | NULL           | NULL     | 450      | 450          | NULL    | NULL        | NULL        | 4          |
 
 ---
 
-This final output provides the foundation for:
+Each part number is ranked based on its **regional performance** (`RANK() OVER (ORDER BY Region_Sales DESC)`) as well as total sales across all regions. This structured output serves as the foundation for a wide range of business insights — enabling teams to identify high-performing SKUs in each market, highlight underperforming or unrepresented parts, and evaluate regional competitiveness.
 
-- Regional **performance dashboards**
-- **Gap analysis** (e.g., no sales in high-demand regions)
-- **Part-level benchmarking** for pricing, stocking, and catalog expansion
-
----
-
-#### 🧠 Business Use
-- Output table `Chassis_Rank` is saved for:
-  - Power BI live dashboards
-  - MS Access queries for business operations
-- Used in multiple follow-up analyses:
-  - Regional gap analysis
-  - Sales trend detection
-  - Inventory alignment and forecasting
-
-### 🧪 Notes & Best Practices
-- Part numbers should be cleaned (condensed) before entering the `ALL_CHASSIS_SALES_RAW` table.
-- If crosses are not detected due to misformatted input, reprocessing is recommended.
-- `ROW_NUMBER()` ordering can be adapted to prioritize specific brands in future updates.
+By surfacing these trends, the final ranked table supports:
+- Region-specific **performance dashboards**
+- Strategic **gap analysis** (e.g., no sales in high-demand regions)
+- **Part-level benchmarking** for pricing, stocking, and catalog development
+- Smarter **territory planning** and inventory allocation across global regions
 
 ---
 
-## 🔄 Suggested Workflow Integration
+#### Business Use & Workflow Integration
 
-1. **Run `sp_CreateMasterCrossReferencesCK`**
-   - Generates up-to-date cross-reference table
-2. **Update raw sales data (`ALL_CHASSIS_SALES_RAW`)**
-   - Clean + condense part numbers
-   - Normalize dates and quantities to annualized figures
-3. **Run `Update_Chassis_Rank`**
-   - Produces latest region-based ranking table
-4. **Connect to Power BI or MS Access**
-   - Perform regional benchmarking, opportunity analysis, and strategic planning
+The final output table, `Chassis_Rank`, serves as a core dataset for regional sales analysis and strategic planning. It is used directly in:
+
+- **Power BI dashboards** (via live connection)
+- **MS Access queries** for daily business operations
+
+Typical workflow:
+
+- Run `sp_CreateMasterCrossReferencesCK` to create the latest flattened mapping between competitor part numbers and internal SKUs.
+  
+- Load compiled retailer sales into `ALL_CHASSIS_SALES_RAW`. Clean part numbers and normalize sales values to annual equivalents.
+  
+- Run `Update_Chassis_Rank` to aggregate demand by region and rank internal parts by market performance.
+
+- Use the output in Power BI or MS Access to perform gap analysis, identify growth opportunities, and guide inventory and sales strategy.
 
 ---
 
 These procedures form the technical foundation for transforming complex, retailer-specific part number data into a powerful, regionally segmented benchmarking tool.
 
+###  Benchmarking Analysis
 
-### Benchmarking & Opportunity Analysis
+To illustrate the value of this project, below is a sample analysis using cross-referenced demand data from global retailers and our internal sales performance by region.
 
-Once normalized and aligned, each part-region pair is analyzed for:
+#### Scenario Overview
 
-- **Sales vs Demand Delta**  
-  - Positive delta = Growth achieved  
-  - Negative delta = Potential missed opportunity
+Let’s consider three internal part numbers (`SusCatalog`):
 
-- **Market Presence**  
-  - Presence in catalogs without sales  
-  - Sales where no catalog demand was detected (indicating possible distribution gaps)
-
-- **Brand Positioning Check**  
-  - Comparing internal product against the type and tier of competitors in that region
+| SusCatalog | Description                   |
+|------------|-------------------------------|
+| SUS-10001  | Front Lower Control Arm – LH  |
+| SUS-10002  | Rear Stabilizer Link – RH     |
+| SUS-10003  | Upper Ball Joint Assembly     |
 
 ---
 
-### KPIs & Pseudo Analysis
+#### Aggregated Retailer Demand (Annualized)
 
-#### 🔸 1. Lost Opportunity %
-
-(Lost Sales / Total Demand) * 100
-
-**Example**:  
-- Region: North America  
-- SKU: 123456  
-- Demand: 12,000 units  
-- Our Sales: 4,200 units  
-- **Lost Opportunity** = (12,000 - 4,200) / 12,000 = **65%**
-
-#### 🔸 2. Brand Penetration Rate
-
-(Our Sales / Total Regional Demand for SKUs we offer)
-
-**Example**:  
-- Region: South America  
-- Total Demand: 25,000 units  
-- Our Sales: 8,750 units  
-- **Penetration** = 35%
-
-#### 🔸 3. Catalog Coverage Ratio
-
-(Unique SKUs Sold / Unique SKUs with Demand)
-
-**Example**:  
-- SKUs with demand: 950  
-- SKUs we sold: 440  
-- **Coverage** = 46.3%
-
-#### 🔸 4. Fill Rate Proxy
-
-(Sales / Min(Sales, Demand)) [capped at 100%]
-
-**Example**:  
-- SKU 789012 in Middle East  
-- Demand: 3,000 units  
-- Sales: 2,750 units  
-- **Fill Rate** ≈ 91.7%
+| SusCatalog | North America | Mexico | Europe | Africa | ME | Total Demand |
+|------------|----------------|--------|--------|--------|----|---------------|
+| SUS-10001  | 2,700           | 600    | 900    | 0      | 0  | 4,200         |
+| SUS-10002  | 0               | 0      | 0      | 300    | 500| 800           |
+| SUS-10003  | 0               | 700    | 1,000  | 0      | 0  | 1,700         |
 
 ---
+
+#### Internal Sales Performance
+
+| SusCatalog | Internal Sales |
+|------------|----------------|
+| SUS-10001  | 3,900          |
+| SUS-10002  | 250            |
+| SUS-10003  | 300            |
+
+---
+
+#### Opportunity & Penetration Metrics
+
+| SusCatalog | Total Demand | Internal Sales | Fulfillment Rate | Opportunity Gap |
+|------------|---------------|----------------|------------------|-----------------|
+| SUS-10001  | 4,200          | 3,900          | 92.9%            | 300 units       |
+| SUS-10002  | 800            | 250            | 31.3%            | 550 units       |
+| SUS-10003  | 1,700          | 300            | 17.6%            | 1,400 units     |
+
+---
+
+#### Observations & Insights
+
+- `SUS-10001` shows **strong market penetration**, especially in North America and Europe. Minor opportunity remains in Mexico (~300 units), likely addressable through sales engagement or local promotions.
+
+- `SUS-10002` underperforms despite visible demand in Africa and the Middle East. This may be due to **regional pricing misalignment** or limited distribution in those territories. It is a good candidate for expanded availability or pricing review.
+
+- `SUS-10003` has **high demand but poor sales**, signaling a potential **stocking issue**, **catalog omission**, or again, **uncompetitive regional pricing**. It should be prioritized for corrective action such as reintroducing into local listings, bundling strategies, or adjusting landed cost structures for underserved markets.
+
+
+---
+
+#### Strategic Actions
+
+- **North America**: Focus on margin optimization for top movers like `SUS-10001`.
+- **Africa & ME**: Improve coverage for SKUs like `SUS-10002` through targeted promotion or new distributor onboarding.
+- **Europe & Mexico**: Address `SUS-10003` shortfall with bundled offers or inclusion in more RFQs.
+
+---
+
+### Catalog Coverage Analysis
+
+In addition to analyzing sales vs. demand performance, we also evaluate **catalog coverage** — measuring how many competitor-demanded SKUs are represented in our internal product line. This ensures that our product catalog is aligned with what the market is actively requesting.
+
+#### Catalog Coverage Definition
+
+For any given region:
+- **Covered**: The competitor part number successfully cross-references to a valid internal `SusCatalog`.
+- **Uncovered**: The part number appears in demand files but does **not** match any item in our Master Cross Reference, indicating a **catalog gap**.
+
+---
+
+#### Sample Regional Coverage Snapshot
+
+| Region         | Total Competitor SKUs | Covered by Our Catalog | Uncovered (Gaps) | Coverage % |
+|----------------|------------------------|-------------------------|------------------|-------------|
+| North America  | 1,200                  | 1,080                   | 120              | 90.0%       |
+| Mexico         | 430                    | 310                     | 120              | 72.1%       |
+| Europe         | 650                    | 400                     | 250              | 61.5%       |
+| Africa         | 200                    | 75                      | 125              | 37.5%       |
+| Middle East    | 180                    | 100                     | 80               | 55.6%       |
+
+---
+
+#### Observations & Strategic Insights
+
+- **North America** has excellent catalog alignment, with 90% of requested SKUs already available. Focus here should shift to margin improvement and sales velocity.
+- **Mexico and Europe** show moderate coverage (~60–70%), suggesting room for **SKU expansion**, especially for fast-moving demand outside our current offering.
+- **Africa and the Middle East** reflect low coverage, possibly due to **limited catalog localization**, **regional certification issues**, or delayed adoption of newer parts. These are **prime candidates** for catalog enrichment or territory-specific product bundles.
+
+---
+
+#### Action Plan for Catalog Alignment
+
+- **Cross-Master Updates**: Review and update cross-reference logic to ensure new competitor parts are mapped where appropriate.
+- **Product Development Feedback**: Share uncovered part demand with the product team to assess feasibility of onboarding missing SKUs.
+- **Regional Prioritization**: Focus SKU expansion efforts on high-volume uncovered items in mid-coverage markets (e.g., Mexico, Europe).
+
+> Regularly reviewing catalog coverage ensures that sales teams are quoting with confidence and maximizing conversion opportunities — even when the original RFQs come in under foreign brands or outdated OEM formats.
+
 
 ### Next Steps
 
-1. **Automate Matching Rules**  
-   - Introduce rule-based suppression for economy crosses  
-   - Automate detection of mismatched or multi-matched competitor SKUs
+To further enhance the accuracy, scalability, and strategic impact of this benchmarking framework, the following initiatives are recommended:
 
-2. **Advanced Metrics**  
-   - Develop weighted metrics that account for margin, freight, and tax variables by region
+#### Expand Regional Insights
+- Incorporate **retailer-level granularity** to distinguish between high- and low-value accounts
+- Add **country-level breakdowns** within broad regions for deeper segmentation
+- Track **regional price discrepancies** and their impact on sales performance
 
-3. **Gap-Focused Alerts**  
-   - Flag parts with demand but no sales in a region for follow-up by regional managers
+#### Catalog Intelligence
+- Develop a flagging system to highlight **high-demand parts with no catalog entry**
+- Create feedback loops to notify product and catalog teams about repeated part number gaps
+- Review catalog coverage quarterly to ensure responsiveness to market shifts
 
-4. **Improve Forecast Validation**  
-   - Compare forecasted vs actual sales to tune demand reliability per retailer
+#### Forecast Validation
+- Compare **forecasted demand** vs. **actual sales** over time to gauge forecast reliability
+- Build a model to score retailer data quality and predictive value
 
 ---
 
-> *This SQL-driven benchmarking framework provides the sales and product strategy teams with a structured way to monitor performance and identify regional growth opportunities based on live market demand.*
+> By addressing these steps, the team can build a fully integrated ecosystem where market intelligence continuously shapes catalog decisions, regional strategies, and sales execution.
