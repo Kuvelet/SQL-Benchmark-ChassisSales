@@ -132,51 +132,100 @@ Retailer demand files are received in a variety of formats and structures, depen
 This section documents the core SQL procedures used in the benchmarking workflow. These procedures are vital for transforming, unifying, and analyzing external sales data from retailers and internal catalogs.
 
 ---
+#### Data Cleaning
 
-#### `[sp_CreateMasterCrossReferencesCK]`  
-**Purpose**: Flatten brand-specific cross-reference columns into a single, vertically structured table for efficient searching, filtering, and joining.
+After compiling and importing the raw sales data from global sales representatives into the SQL Server table `ALL_CHASSIS_SALES_RAW`, a preprocessing step is performed to clean part numbers and prepare the dataset for accurate cross-referencing.
 
-Retailer demand files reference competitor part numbers that vary across brands like Moog, Delphi, MAS, etc. In the raw `01_CrossMaster` table, these are spread across dozens of columns. Instead of checking each individually, this procedure creates a standardized vertical table (`Master_CrossReferences_CK`) with:
+- **Standardize Part Numbers**:  
+  Raw part numbers often contain inconsistent formatting such as dashes, dots, slashes, or spaces. These characters are removed to generate a clean, condensed version.
 
-- `CrossName` → Name of the brand/source column  
-- `CrossingNumber` → The part number from that brand  
-- `SusCatalog` → Our internal catalog part number  
-
-This allows simplified and efficient `JOIN` logic across projects.
-
-- Uses `UNION ALL` to stack all branded columns into one table.
-- Filters out nulls to maintain clean matches.
-- The resulting table is refreshed **on demand**, usually before each analysis.
-- Includes conditional (`Cond`) and related fields to cover all relevant possibilities, even if some are not used in the current project.
-
-> Note: All part numbers are cleaned to a *condensed* format (no spaces, dashes, dots) before cross-referencing, ensuring fuzzy matches do not cause lookup failures.
+- **Create `Part_Number_Cond` Field**:  
+  A new column, `Part_Number_Cond`, is generated to store the cleaned version of each part number. This ensures that all matching and joining operations (particularly with the Master Cross Reference table) are based on consistent part number formatting.
 
 ```sql
-ALTER PROCEDURE [dbo].[sp_CreateMasterCrossReferencesCK]
-AS
-BEGIN
-    IF OBJECT_ID('dbo.Master_CrossReferences_CK', 'U') IS NOT NULL
-        DROP TABLE dbo.Master_CrossReferences_CK;
-
-    SELECT DISTINCT t.CrossName, t.CrossingNumber, t.SusCatalog
-    INTO [dbo].[Master_CrossReferences_CK]
-    FROM (
-        SELECT 'OEMCond' AS CrossName, [OEMCond] AS CrossingNumber, [SusCatalog] FROM [Suspensia_New].[dbo].[01_CrossMaster]
-        UNION ALL
-        SELECT 'Moog', [Moog], [SusCatalog] FROM [Suspensia_New].[dbo].[01_CrossMaster]
-        UNION ALL
-        SELECT 'MevotechOG', [MevotechOG], [SusCatalog] FROM [Suspensia_New].[dbo].[01_CrossMaster]
-        UNION ALL
-        SELECT 'Mevotech', [Mevotech], [SusCatalog] FROM [Suspensia_New].[dbo].[01_CrossMaster]
-        UNION ALL
-        SELECT 'Delphi', [Delphi], [SusCatalog] FROM [Suspensia_New].[dbo].[01_CrossMaster]
-        -- Additional brands are included here in actual implementation
-        UNION ALL
-        SELECT 'Sankei', [Sankei], [SusCatalog] FROM [Suspensia_New].[dbo].[01_CrossMaster]
-    ) AS t
-    WHERE t.CrossingNumber IS NOT NULL AND t.SusCatalog IS NOT NULL;
-END;
+SELECT
+    ID,
+    Brand,
+    Part_Number,
+    UPPER(REPLACE(REPLACE(REPLACE(REPLACE([Part_Number], '-', ''), '.', ''), ' ', ''), '/', '')) AS Part_Number_Cond,
+    Last_12_Months_Sales,
+    List,
+    Region,
+    Year_Received
+INTO dbo.ALL_CHASSIS_SALES_RAW_CLEANED
+FROM dbo.ALL_CHASSIS_SALES_RAW;
 ```
+
+##### Example Transformation:
+
+| Part_Number   | Part_Number_Cond |
+|---------------|------------------|
+| `1AS-BJ00132` | `1ASBJ00132`     |
+| `TRQ.123 / A` | `TRQ123A`        |
+| ` 123-456 `   | `123456`         |
+
+
+
+#### `[sp_CreateMasterCrossReferencesCK]`  
+
+**Purpose**:  
+Transform the wide-format cross-reference catalog (`01_CrossMaster`) into a **flattened, vertically structured table** (`Master_CrossReferences_CK`) to support efficient and scalable joins between competitor part numbers and our internal catalog.
+
+Retailer demand files often include competitor part numbers (e.g., from Moog, Delphi, MAS, etc.), but in the source catalog, each competitor's part number is stored in its own dedicated column. This stored procedure restructures the catalog into a unified reference table with the following columns:
+
+- `CrossName` → The name of the original brand column (e.g., `Moog`, `DelphiCond`)  
+- `CrossingNumber` → The competitor or OEM part number  
+- `SusCatalog` → Our internal part number used across all analysis
+
+Using a `UNION ALL` approach, this procedure vertically stacks all relevant columns from `01_CrossMaster` into a single table. It also filters out nulls to maintain clean and reliable joins.
+
+The resulting `Master_CrossReferences_CK` table supports flexible cross-matching logic, whether for market benchmarking, catalog alignment, or sales performance analysis. Conditional (`Cond`) and related-brand fields are also included to maximize compatibility across all use cases, even if not all brands are used in every analysis.
+
+This procedure is executed **on demand**, typically just before running a new benchmarking or sales comparison cycle.
+
+>  *Note:* All part numbers used in matching are cleaned to a condensed format (removing dashes, dots, and spaces) to ensure consistent joins and prevent formatting mismatches.
+
+```sql
+IF OBJECT_ID('dbo.Master_CrossReferences_CK', 'U') IS NOT NULL
+    DROP TABLE dbo.Master_CrossReferences_CK;
+
+SELECT DISTINCT t.CrossName, t.CrossingNumber, t.SusCatalog
+INTO dbo.Master_CrossReferences_CK
+FROM (
+    SELECT 'OEMCond' AS CrossName, OEMCond AS CrossingNumber, SusCatalog FROM Suspensia_New.dbo.01_CrossMaster
+    UNION ALL
+    SELECT 'Moog', Moog, SusCatalog FROM Suspensia_New.dbo.01_CrossMaster
+    UNION ALL
+    SELECT 'Delphi', Delphi, SusCatalog FROM Suspensia_New.dbo.01_CrossMaster
+    -- +40 additional brand columns in full implementation
+    UNION ALL
+    SELECT 'Sankei', Sankei, SusCatalog FROM Suspensia_New.dbo.01_CrossMaster
+) AS t
+WHERE t.CrossingNumber IS NOT NULL AND t.SusCatalog IS NOT NULL;
+```
+
+#### Example Transformation
+
+The original `01_CrossMaster` table stores competitor part numbers in a **wide format**, where each column represents a different brand:
+
+| SusCatalog | Moog     | Delphi   | MAS       | OEMCond   |
+|------------|----------|----------|-----------|-----------|
+| SUS-10001  | K123456  | DS45678  | MS98765   | 12345678  |
+| SUS-10002  | K789012  | NULL     | MS65432   | 87654321  |
+
+The stored procedure `[sp_CreateMasterCrossReferencesCK]` transforms this into a **long (tall)** format for efficient querying and cross-referencing:
+
+| CrossName | CrossingNumber | SusCatalog |
+|-----------|----------------|------------|
+| Moog      | K123456        | SUS-10001  |
+| Delphi    | DS45678        | SUS-10001  |
+| MAS       | MS98765        | SUS-10001  |
+| OEMCond   | 12345678       | SUS-10001  |
+| Moog      | K789012        | SUS-10002  |
+| MAS       | MS65432        | SUS-10002  |
+| OEMCond   | 87654321       | SUS-10002  |
+
+This flattened format enables us to **match any part number, from any brand**, against our catalog without having to search across multiple columns.
 
 ---
 
@@ -188,13 +237,13 @@ END;
   `Part_Number`, `Brand`, `Qty`, `Region`, `Date`, `Sales`, and `Part_Number_Cond` for normalized comparisons.
 
 
-####  Cross Reference Matching
+####  1st Part: Cross Reference Matching
 - Joins `ALL_CHASSIS_SALES_RAW` with `Master_CrossReferences_CK` using the `Part_Number_Cond` field.
 - Uses `ROW_NUMBER()` to deduplicate multiple matches for the same part by selecting only the first record.
   - This avoids **double aggregation** of sales data.
   - Ensures one-to-one mapping when multiple brands point to the same internal SKU.
 
-####  Regional Aggregation & Ranking
+#### 2nd Part: Regional Aggregation & Ranking
 - Aggregates sales by `SusCatalog` across all major regions:
   - North America
   - Mexico
@@ -257,7 +306,52 @@ BEGIN
 END;
 ```
 
-> These procedures support a streamlined process of transforming scattered sales and catalog data into a normalized structure for meaningful regional benchmarking.
+#### Example Transformation
+
+**Raw Input** (`ALL_CHASSIS_SALES_RAW` — sample)
+
+| ID | Brand  | Part_Number | Part_Number_Cond | Last_12_Months_Sales | Region        | Year_Received |
+|----|--------|--------------|------------------|------------------------|----------------|----------------|
+| 1  | Moog   | K123456      | K123456          | 1200                   | North America  | 2023           |
+| 2  | MAS    | MS98765      | MS98765          | 600                    | Mexico         | 2023           |
+| 3  | Delphi | DS45678      | DS45678          | 900                    | Europe         | 2023           |
+| 4  | OEM    | 12345678     | 12345678         | 1500                   | North America  | 2023           |
+| 5  | Moog   | K789012      | K789012          | 500                    | South America  | 2023           |
+| 6  | MAS    | MS65432      | MS65432          | 300                    | Central America| 2023           |
+| 7  | Delphi | DS11111      | DS11111          | 700                    | Mexico         | 2023           |
+| 8  | OEM    | 87654321     | 87654321         | 1000                   | Europe         | 2023           |
+| 9  | Moog   | K222333      | K222333          | 450                    | Middle East    | 2023           |
+
+**Cross-Matching** (`Master_CrossReferences_CK` — simplified sample)
+
+| CrossName | CrossingNumber | SusCatalog  |
+|-----------|----------------|-------------|
+| Moog      | K123456        | SUS-10001   |
+| MAS       | MS98765        | SUS-10001   |
+| Delphi    | DS45678        | SUS-10001   |
+| OEMCond   | 12345678       | SUS-10001   |
+| Moog      | K789012        | SUS-10002   |
+| MAS       | MS65432        | SUS-10002   |
+| Delphi    | DS11111        | SUS-10003   |
+| OEMCond   | 87654321       | SUS-10003   |
+| Moog      | K222333        | SUS-10004   |
+
+**Joined + Aggregated Output** (`Chassis_Rank` — sample)
+
+| SusCatalog | NA_Sales | Mexico_Sales | Europe_Sales | Central_Sales | SA_Sales | ME_Sales | Total_Sales | Rank_Total |
+|------------|----------|--------------|--------------|----------------|----------|----------|--------------|-------------|
+| SUS-10001  | 2700     | 600          | 900          | NULL           | NULL     | NULL     | 4200         | 1           |
+| SUS-10002  | NULL     | NULL         | NULL         | 300            | 500      | NULL     | 800          | 3           |
+| SUS-10003  | NULL     | 700          | 1000         | NULL           | NULL     | NULL     | 1700         | 2           |
+| SUS-10004  | NULL     | NULL         | NULL         | NULL           | NULL     | 450      | 450          | 4           |
+
+---
+
+This final output provides the foundation for:
+
+- Regional **performance dashboards**
+- **Gap analysis** (e.g., no sales in high-demand regions)
+- **Part-level benchmarking** for pricing, stocking, and catalog expansion
 
 ---
 
