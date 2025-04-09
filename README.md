@@ -1,14 +1,32 @@
 # Benchmarking Auto Parts Sales with SQL-Based Market Comparison
 
-### Table of Contents  
-- [Project Overview](#project-overview)  
-- [Objectives](#objectives)  
-- [Data Sources](#data-sources)  
-- [Tools](#tools)  
-- [Data Preparation](#data-preparation)  
-- [SQL Methodology](#sql-methodology)  
-- [Benchmarking & Opportunity Analysis](#benchmarking--opportunity-analysis)  
-- [KPIs & Pseudo Analysis](#kpis--pseudo-analysis)  
+### Table of Contents
+
+- [Project Overview](#project-overview)
+- [Objectives](#objectives)
+- [Data Sources](#data-sources)
+- [Tools](#tools)
+- [Data Preparation](#data-preparation)
+- [SQL Methodology](#sql-methodology)
+- [SQL Procedures & Data Flow Explanation](#sql-procedures--data-flow-explanation)
+  - [Data Cleaning](#data-cleaning)
+  - [sp_CreateMasterCrossReferencesCK](#sp_createmastercrossreferencesck)
+    - [Example Transformation](#example-transformation)
+  - [Update_Chassis_Rank](#update_chassis_rank)
+    - [Example Transformation](#example-transformation-1)
+- [Business Use & Workflow Integration](#business-use--workflow-integration)
+- [Benchmarking Analysis](#benchmarking-analysis)
+  - [Scenario Overview](#scenario-overview)
+  - [Aggregated Retailer Demand](#aggregated-retailer-demand-annualized)
+  - [Internal Sales Performance](#internal-sales-performance)
+  - [Opportunity & Penetration Metrics](#opportunity--penetration-metrics)
+  - [Observations & Insights](#observations--insights)
+  - [Strategic Actions](#strategic-actions)
+- [Catalog Coverage Analysis](#catalog-coverage-analysis)
+  - [Catalog Coverage Definition](#catalog-coverage-definition)
+  - [Sample Regional Coverage Snapshot](#sample-regional-coverage-snapshot)
+  - [Observations & Strategic Insights](#observations--strategic-insights)
+  - [Action Plan for Catalog Alignment](#action-plan-for-catalog-alignment)
 - [Next Steps](#next-steps)
 
 ---
@@ -130,7 +148,6 @@ Retailer demand files are received in a variety of formats and structures, depen
 
 This section documents the core SQL procedures used in the benchmarking workflow. These procedures are vital for transforming, unifying, and analyzing external sales data from retailers and internal catalogs.
 
----
 #### Data Cleaning
 
 After compiling and importing the raw sales data from global sales representatives into the SQL Server table `ALL_CHASSIS_SALES_RAW`, a preprocessing step is performed to clean part numbers and prepare the dataset for accurate cross-referencing.
@@ -226,7 +243,6 @@ The stored procedure `[sp_CreateMasterCrossReferencesCK]` transforms this into a
 
 This flattened format enables us to **match any part number, from any brand**, against our catalog without having to search across multiple columns.
 
----
 
 ### 2. `[Update_Chassis_Rank]`  
 **Purpose**: Aggregate retailer sales data by region, resolve crosses to internal part numbers, and rank performance by part and geography.
@@ -321,7 +337,6 @@ END;
 | 8  | OEM    | 87654321     | 87654321         | 1000                   | Europe           | 2023           |
 | 9  | Moog   | K222333      | K222333          | 450                    | Middle East      | 2023           |
 
----
 
 **Cross-Matched** (`Master_CrossReferences_CK` — simplified sample)
 
@@ -337,7 +352,6 @@ END;
 | OEMCond   | 87654321       | SUS-10003   |
 | Moog      | K222333        | SUS-10004   |
 
----
 
 **Final Output** (`Chassis_Rank` — Aggregated & Ranked)
 
@@ -347,8 +361,6 @@ END;
 | SUS-10003  | NULL     | 700          | 1000         | NULL           | NULL     | NULL     | 1700         | NULL    | 1           | 1           | 2          |
 | SUS-10002  | NULL     | NULL         | NULL         | 300            | 500      | NULL     | 800          | NULL    | NULL        | NULL        | 3          |
 | SUS-10004  | NULL     | NULL         | NULL         | NULL           | NULL     | 450      | 450          | NULL    | NULL        | NULL        | 4          |
-
----
 
 Each part number is ranked based on its **regional performance** (`RANK() OVER (ORDER BY Region_Sales DESC)`) as well as total sales across all regions. This structured output serves as the foundation for a wide range of business insights — enabling teams to identify high-performing SKUs in each market, highlight underperforming or unrepresented parts, and evaluate regional competitiveness.
 
@@ -360,7 +372,7 @@ By surfacing these trends, the final ranked table supports:
 
 ---
 
-#### Business Use & Workflow Integration
+### Business Use & Workflow Integration
 
 The final output table, `Chassis_Rank`, serves as a core dataset for regional sales analysis and strategic planning. It is used directly in:
 
@@ -377,9 +389,9 @@ Typical workflow:
 
 - Use the output in Power BI or MS Access to perform gap analysis, identify growth opportunities, and guide inventory and sales strategy.
 
----
-
 These procedures form the technical foundation for transforming complex, retailer-specific part number data into a powerful, regionally segmented benchmarking tool.
+
+---
 
 ###  Benchmarking Analysis
 
@@ -395,7 +407,6 @@ Let’s consider three internal part numbers (`SusCatalog`):
 | SUS-10002  | Rear Stabilizer Link – RH     |
 | SUS-10003  | Upper Ball Joint Assembly     |
 
----
 
 #### Aggregated Retailer Demand (Annualized)
 
@@ -405,7 +416,6 @@ Let’s consider three internal part numbers (`SusCatalog`):
 | SUS-10002  | 0               | 0      | 0      | 300    | 500| 800           |
 | SUS-10003  | 0               | 700    | 1,000  | 0      | 0  | 1,700         |
 
----
 
 #### Internal Sales Performance
 
@@ -415,7 +425,6 @@ Let’s consider three internal part numbers (`SusCatalog`):
 | SUS-10002  | 250            |
 | SUS-10003  | 300            |
 
----
 
 #### Opportunity & Penetration Metrics
 
@@ -425,7 +434,6 @@ Let’s consider three internal part numbers (`SusCatalog`):
 | SUS-10002  | 800            | 250            | 31.3%            | 550 units       |
 | SUS-10003  | 1,700          | 300            | 17.6%            | 1,400 units     |
 
----
 
 #### Observations & Insights
 
@@ -436,8 +444,6 @@ Let’s consider three internal part numbers (`SusCatalog`):
 - `SUS-10003` has **high demand but poor sales**, signaling a potential **stocking issue**, **catalog omission**, or again, **uncompetitive regional pricing**. It should be prioritized for corrective action such as reintroducing into local listings, bundling strategies, or adjusting landed cost structures for underserved markets.
 
 
----
-
 #### Strategic Actions
 
 - **North America**: Focus on margin optimization for top movers like `SUS-10001`.
@@ -445,6 +451,7 @@ Let’s consider three internal part numbers (`SusCatalog`):
 - **Europe & Mexico**: Address `SUS-10003` shortfall with bundled offers or inclusion in more RFQs.
 
 ---
+
 
 ### Catalog Coverage Analysis
 
@@ -456,7 +463,6 @@ For any given region:
 - **Covered**: The competitor part number successfully cross-references to a valid internal `SusCatalog`.
 - **Uncovered**: The part number appears in demand files but does **not** match any item in our Master Cross Reference, indicating a **catalog gap**.
 
----
 
 #### Sample Regional Coverage Snapshot
 
@@ -468,7 +474,6 @@ For any given region:
 | Africa         | 200                    | 75                      | 125              | 37.5%       |
 | Middle East    | 180                    | 100                     | 80               | 55.6%       |
 
----
 
 #### Observations & Strategic Insights
 
@@ -476,7 +481,6 @@ For any given region:
 - **Mexico and Europe** show moderate coverage (~60–70%), suggesting room for **SKU expansion**, especially for fast-moving demand outside our current offering.
 - **Africa and the Middle East** reflect low coverage, possibly due to **limited catalog localization**, **regional certification issues**, or delayed adoption of newer parts. These are **prime candidates** for catalog enrichment or territory-specific product bundles.
 
----
 
 #### Action Plan for Catalog Alignment
 
@@ -486,6 +490,7 @@ For any given region:
 
 > Regularly reviewing catalog coverage ensures that sales teams are quoting with confidence and maximizing conversion opportunities — even when the original RFQs come in under foreign brands or outdated OEM formats.
 
+---
 
 ### Next Steps
 
